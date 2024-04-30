@@ -57,9 +57,7 @@ class LocalLLMAugment(AbstractAugment):
 
 class OpenAIAugment(AbstractAugment):
     def __init__(self, **kwargs):
-        self.client = OpenAI(
-            api_key=""
-        )
+        self.client = OpenAI()
         bt.logging.info("Running query augmentation with OpenAI GPT-4")
 
     def augment_query(self, query: str) -> str:
