@@ -3,10 +3,11 @@ import bittensor as bt
 from openai import OpenAI
 import torch
 from transformers import pipeline
+import random
 
 
 def get_llm_prompt(query: str) -> str:
-    return f"Take the given query `{query}` and augment it to be more detailed. For example, add specific names, types, embellishments, richness. Do not make it longer than 12 words."
+    return f"Take the given query `{query}` and augment it to be more detailed. For example, add specific names, types, embellishments, richness. Based by any random country, and the query must based on the context of the country. Do not make it longer than {random.randint(3, 12)} words."
 
 
 class AbstractAugment:
@@ -56,7 +57,9 @@ class LocalLLMAugment(AbstractAugment):
 
 class OpenAIAugment(AbstractAugment):
     def __init__(self, **kwargs):
-        self.client = OpenAI()
+        self.client = OpenAI(
+            api_key="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"
+        )
         bt.logging.info("Running query augmentation with OpenAI GPT-4")
 
     def augment_query(self, query: str) -> str:

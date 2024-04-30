@@ -20,8 +20,8 @@ from validator_api.config import TOPICS_LIST, IS_PROD
 from validator_api.dataset_upload import dataset_uploader
 
 
-NETWORK = os.environ["NETWORK"]
-NETUID = int(os.environ["NETUID"])
+NETWORK = "ws://127.0.0.1:9944" or os.environ["NETWORK"]
+NETUID = "24" or int(os.environ["NETUID"])
 
 
 security = HTTPBasic()
@@ -113,7 +113,7 @@ async def main():
 
     await asyncio.gather(
         resync_metagraph(),
-        asyncio.to_thread(uvicorn.run, app, host="0.0.0.0", port=8001)
+        asyncio.to_thread(uvicorn.run, app, host="0.0.0.0", port=8002)
     )
 
 

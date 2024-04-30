@@ -21,54 +21,20 @@ import threading
 import argparse
 import traceback
 
-import bittensor as bt
 
-from omega.base.neuron import BaseNeuron
-from omega.utils.config import add_miner_args
-
-
-class BaseMinerNeuron(BaseNeuron):
+class BaseMinerNeuron():
     """
     Base class for Bittensor miners.
     """
 
-    neuron_type: str = "MinerNeuron"
-
-    @classmethod
-    def add_args(cls, parser: argparse.ArgumentParser):
-        super().add_args(parser)
-        add_miner_args(cls, parser)
-
     def __init__(self, config=None):
-        super().__init__(config=config)
-
-        # Warn if allowing incoming requests from anyone.
-        if not self.config.blacklist.force_validator_permit:
-            bt.logging.warning(
-                "You are allowing non-validators to send requests to your miner. This is a security risk."
-            )
-        if self.config.blacklist.allow_non_registered:
-            bt.logging.warning(
-                "You are allowing non-registered entities to send requests to your miner. This is a security risk."
-            )
-
-        # The axon handles request processing, allowing validators to send this miner requests.
-        self.axon = bt.axon(wallet=self.wallet, config=self.config)
-
-        # Attach determiners which functions are called when servicing a request.
-        bt.logging.info(f"Attaching forward function to miner axon.")
-        self.axon.attach(
-            forward_fn=self.forward,
-            blacklist_fn=self.blacklist,
-            priority_fn=self.priority,
-        )
-        bt.logging.info(f"Axon created: {self.axon}")
-
         # Instantiate runners
         self.should_exit: bool = False
         self.is_running: bool = False
         self.thread: threading.Thread = None
         self.lock = asyncio.Lock()
+        self.step = 0
+
 
     def run(self):
         """
@@ -92,49 +58,25 @@ class BaseMinerNeuron(BaseNeuron):
             KeyboardInterrupt: If the miner is stopped by a manual interruption.
             Exception: For unforeseen errors during the miner's operation, which are logged for diagnosis.
         """
-
-        # Check that miner is registered on the network.
-        self.sync()
-
-        # Serve passes the axon information to the network + netuid we are hosting on.
-        # This will auto-update if the axon port of external ip have changed.
-        bt.logging.info(
-            f"Serving miner axon {self.axon} on network: {self.config.subtensor.chain_endpoint} with netuid: {self.config.netuid}"
-        )
-        self.axon.serve(netuid=self.config.netuid, subtensor=self.subtensor)
-
-        # Start  starts the miner's axon, making it active on the network.
-        self.axon.start()
-
-        bt.logging.info(f"Miner starting at block: {self.block}")
-
         # This loop maintains the miner's operations until intentionally stopped.
         try:
             while not self.should_exit:
-                while (
-                    self.block - self.metagraph.last_update[self.uid]
-                    < self.config.neuron.epoch_length
-                ):
-                    # Wait before checking again.
-                    time.sleep(1)
+                # Wait before checking again.
+                time.sleep(1)
 
-                    # Check if we should exit.
-                    if self.should_exit:
-                        break
+                # Check if we should exit.
+                if self.should_exit:
+                    break
 
-                # Sync metagraph and potentially set weights.
-                # self.sync()
                 self.step += 1
 
         # If someone intentionally stops the miner, it'll safely terminate operations.
         except KeyboardInterrupt:
-            self.axon.stop()
-            bt.logging.success("Miner killed by keyboard interrupt.")
             exit()
 
         # In case of unforeseen errors, the miner will log the error and continue operations.
         except Exception as e:
-            bt.logging.error(traceback.format_exc())
+            print(traceback.format_exc())
 
     def run_in_background_thread(self):
         """
@@ -142,23 +84,23 @@ class BaseMinerNeuron(BaseNeuron):
         This is useful for non-blocking operations.
         """
         if not self.is_running:
-            bt.logging.debug("Starting miner in background thread.")
+            print("Starting miner in background thread.")
             self.should_exit = False
             self.thread = threading.Thread(target=self.run, daemon=True)
             self.thread.start()
             self.is_running = True
-            bt.logging.debug("Started")
+            print("Started")
 
     def stop_run_thread(self):
         """
         Stops the miner's operations that are running in the background thread.
         """
         if self.is_running:
-            bt.logging.debug("Stopping miner in background thread.")
+            print("Stopping miner in background thread.")
             self.should_exit = True
             self.thread.join(5)
             self.is_running = False
-            bt.logging.debug("Stopped")
+            print("Stopped")
 
     def __enter__(self):
         """
@@ -183,9 +125,82 @@ class BaseMinerNeuron(BaseNeuron):
         """
         self.stop_run_thread()
 
-    def resync_metagraph(self):
-        """Resyncs the metagraph and updates the hotkeys and moving averages based on the new metagraph."""
-        bt.logging.info("resync_metagraph()")
 
-        # Sync the metagraph.
-        self.metagraph.sync(subtensor=self.subtensor)
+
+import time
+import typing
+import bittensor as bt
+
+# Bittensor Miner Template:
+import omega
+
+# from omega.base.miner import BaseMinerNeuron
+from omega.imagebind_wrapper import ImageBind
+from omega.miner_utils import search_and_embed_videos
+from omega.augment import LocalLLMAugment, OpenAIAugment, NoAugment
+from omega.utils.config import QueryAugment
+from omega.constants import VALIDATOR_TIMEOUT
+
+import torch
+
+
+class Miner(BaseMinerNeuron):
+    """
+    Your miner neuron class. You should use this class to define your miner's behavior. In particular, you should replace the forward function with your own logic. You may also want to override the blacklist and priority functions according to your needs.
+
+    This class inherits from the BaseMinerNeuron class, which in turn inherits from BaseNeuron. The BaseNeuron class takes care of routine tasks such as setting up wallet, subtensor, metagraph, logging directory, parsing config, etc. You can override any of the methods in BaseNeuron if you need to customize the behavior.
+
+    This class provides reasonable default behavior for a miner such as blacklisting unrecognized hotkeys, prioritizing requests based on stake, and forwarding requests to the forward function. If you need to define custom
+    """
+
+    def __init__(self, config=None):
+        super(Miner, self).__init__(config=config)
+        # query_augment_type = QueryAugment(self.config.neuron.query_augment)
+        # if query_augment_type == QueryAugment.NoAugment:
+        #     self.augment = NoAugment(device=self.config.neuron.device)
+        # elif query_augment_type == QueryAugment.LocalLLMAugment:
+        #     self.augment = LocalLLMAugment(device=self.config.neuron.device)
+        # elif query_augment_type == QueryAugment.OpenAIAugment:
+        #     self.augment = OpenAIAugment(device=self.config.neuron.device)
+        # else:
+        #     raise ValueError("Invalid query augment")
+        self.imagebind = ImageBind()
+
+    async def forward(
+        self
+    ) -> omega.protocol.Videos:
+        query = "Explaining the complexities of global warming and climate change, including key factors and influential figures."
+        num_videos = 8
+
+        print(f"Received scraping request: {num_videos} videos for query '{query}'")
+        start = time.time()
+        # torch.cuda.set_device("cuda:0")
+        video_metadata = search_and_embed_videos(
+            query, num_videos, self.imagebind
+        )
+        time_elapsed = time.time() - start
+        if len(video_metadata) == num_videos and time_elapsed < VALIDATOR_TIMEOUT:
+            print(f"–––––– SCRAPING SUCCEEDED: Scraped {len(video_metadata)}/{num_videos} videos in {time_elapsed} seconds.")
+        else:
+            print(f"–––––– SCRAPING FAILED: Scraped {len(video_metadata)}/{num_videos} videos in {time_elapsed} seconds.")
+        return None
+
+    def save_state(self):
+        """
+        We define this function to avoid printing out the log message in the BaseNeuron class
+        that says `save_state() not implemented`.
+        """
+        pass
+
+
+
+if __name__ == "__main__":
+    i = 0
+    loop = asyncio.get_event_loop()
+    with Miner() as miner:
+        while True:
+            bt.logging.info("Miner running...", time.time())
+            time.sleep(5)
+            if i == 0:
+                loop.run_until_complete(miner.forward())
+            i += 1

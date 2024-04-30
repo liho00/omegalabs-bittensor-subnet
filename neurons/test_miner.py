@@ -1,4 +1,5 @@
-from omega.miner_utils import search_and_embed_videos, ImageBind
+from omega.miner_utils import search_and_embed_videos
+from omega.imagebind_wrapper import ImageBind
 from omega.constants import VALIDATOR_TIMEOUT
 from omega.protocol import Videos
 import time
@@ -26,7 +27,8 @@ if len(video_metadata_list) == 0:
 else:
     videos = Videos(query=query, num_videos=num_videos, video_metadata=video_metadata_list)
     response = requests.get(
-        "https://dev-validator.api.omega-labs.ai/api/count_unique",
+        "https://dev-validator.api.omega-labs.ai/api/check_score",
+        # "http://127.0.0.1:8002/api/check_score",
         json=videos.to_serializable_dict(videos)
     )
     print(response.json())

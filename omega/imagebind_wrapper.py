@@ -12,7 +12,7 @@ import torch
 from omega import video_utils
 
 
-BPE_PATH = "./omega/bpe/bpe_simple_vocab_16e6.txt.gz"
+BPE_PATH = "/home/shadeform/omegalabs-bittensor-subnet/omega/bpe/bpe_simple_vocab_16e6.txt.gz"
 
 
 class Embeddings(BaseModel):
@@ -46,17 +46,24 @@ class ImageBind:
         self.imagebind.to(self.device)
 
     def get_inputs(self, descriptions: List[str], video_files: List[BinaryIO]) -> dict:
+        print("imagebind:get_inputs:debug1")
         audio_files = [video_utils.copy_audio(video_file.name) for video_file in video_files]
+        print("imagebind:get_inputs:debug2")
         audio_filepaths = [audio_file.name for audio_file in audio_files]
+        print("imagebind:get_inputs:debug3")
         video_filepaths = [video_file.name for video_file in video_files]
+        print("imagebind:get_inputs:debug4")
         try:
             video_data = data.load_and_transform_video_data(video_filepaths, self.device)
+            print("imagebind:get_inputs:debug5")
             audio_data = data.load_and_transform_audio_data(audio_filepaths, self.device)
+            print("imagebind:get_inputs:debug6")
             inputs = {
                 ModalityType.TEXT: load_and_transform_text(descriptions, self.device),
                 ModalityType.VISION: video_data,
                 ModalityType.AUDIO: audio_data,
             }
+            print("imagebind:get_inputs:debug7")
             return inputs
         finally:
             for audio_file in audio_files:
@@ -64,8 +71,11 @@ class ImageBind:
 
     @torch.no_grad()
     def embed(self, descriptions: List[str], video_files: List[BinaryIO]) -> Embeddings:
+        print("imagebind:embed:debug1")
         inputs = self.get_inputs(descriptions, video_files)
+        print("imagebind:embed:debug2")
         embeddings = self.imagebind(inputs)
+        print("imagebind:embed:debug3")
         return Embeddings(
             video=embeddings[ModalityType.VISION],
             audio=embeddings[ModalityType.AUDIO],
